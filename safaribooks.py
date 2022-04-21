@@ -17,7 +17,6 @@ from lxml import html, etree
 from multiprocessing import Process, Queue, Value
 from urllib.parse import urljoin, urlparse, parse_qs, quote_plus
 
-
 PATH = os.path.dirname(os.path.realpath(__file__))
 COOKIES_FILE = os.path.join(PATH, "cookies.json")
 
@@ -118,7 +117,7 @@ class Display:
         if self.output_dir_set:
             output = (self.SH_YELLOW + "[+]" + self.SH_DEFAULT +
                       " Please delete the output directory '" + self.output_dir + "'"
-                      " and restart the program.")
+                                                                                  " and restart the program.")
             self.out(output)
 
         output = self.SH_BG_RED + "[!]" + self.SH_DEFAULT + " Aborting..."
@@ -171,7 +170,8 @@ class Display:
     def book_info(self, info):
         description = self.parse_description(info.get("description", None)).replace("\n", " ")
         for t in [
-            ("Title", info.get("title", "")), ("Authors", ", ".join(aut.get("name", "") for aut in info.get("authors", []))),
+            ("Title", info.get("title", "")),
+            ("Authors", ", ".join(aut.get("name", "") for aut in info.get("authors", []))),
             ("Identifier", info.get("identifier", "")), ("ISBN", info.get("isbn", "")),
             ("Publishers", ", ".join(pub.get("name", "") for pub in info.get("publishers", []))),
             ("Rights", info.get("rights", "")),
@@ -210,8 +210,8 @@ class Display:
         else:
             os.remove(COOKIES_FILE)
             message += "Out-of-Session%s.\n" % (" (%s)" % response["detail"]) if "detail" in response else "" + \
-                       Display.SH_YELLOW + "[+]" + Display.SH_DEFAULT + \
-                       " Use the `--cred` or `--login` options in order to perform the auth login to Safari."
+                                                                                                           Display.SH_YELLOW + "[+]" + Display.SH_DEFAULT + \
+                                                                                                           " Use the `--cred` or `--login` options in order to perform the auth login to Safari."
 
         return message
 
@@ -364,6 +364,9 @@ class SafariBooks:
             os.mkdir(books_dir)
 
         self.BOOK_PATH = os.path.join(books_dir, self.clean_book_title)
+        self.DOWNLOADED_PATH = os.path.join(PATH, "Downloaded Books")
+        self.FILE_NAME = self.book_title + ".epub"
+        self.ABSOLUTE_FILE_PATH = os.path.join(self.BOOK_PATH, self.book_title) + ".epub"
         self.display.set_output_dir(self.BOOK_PATH)
         self.css_path = ""
         self.images_path = ""
@@ -404,10 +407,12 @@ class SafariBooks:
         self.display.info("Creating EPUB file...", state=True)
         self.create_epub()
 
+        self.move_file_to_downloaded_dir()
+
         if not args.no_cookies:
             json.dump(self.session.cookies.get_dict(), open(COOKIES_FILE, "w"))
 
-        self.display.done(os.path.join(self.BOOK_PATH, self.book_id + ".epub"))
+        self.display.done(os.path.join(self.DOWNLOADED_PATH, self.FILE_NAME))
         self.display.unregister()
 
         if not self.display.in_error and not args.log:
@@ -772,6 +777,11 @@ class SafariBooks:
         else:
             os.makedirs(self.BOOK_PATH)
 
+        if os.path.isdir(self.DOWNLOADED_PATH):
+            self.display.log("Downloaded directory already exists: %s" % self.DOWNLOADED_PATH)
+        else:
+            os.makedirs(self.DOWNLOADED_PATH)
+
         oebps = os.path.join(self.BOOK_PATH, "OEBPS")
         if not os.path.isdir(oebps):
             self.display.book_ad_info = True
@@ -825,7 +835,6 @@ class SafariBooks:
                     else:
                         self.images.append(urljoin(next_chapter['asset_base_url'], img_url))
 
-
             # Stylesheets
             self.chapter_stylesheets = []
             if "stylesheets" in next_chapter and len(next_chapter["stylesheets"]):
@@ -841,7 +850,7 @@ class SafariBooks:
                         ("File `%s` already exists.\n"
                          "    If you want to download again all the book,\n"
                          "    please delete the output directory '" + self.BOOK_PATH + "' and restart the program.")
-                         % self.filename.replace(".html", ".xhtml")
+                        % self.filename.replace(".html", ".xhtml")
                     )
                     self.display.book_ad_info = 2
 
@@ -857,7 +866,7 @@ class SafariBooks:
                 self.display.info(("File `%s` already exists.\n"
                                    "    If you want to download again all the CSSs,\n"
                                    "    please delete the output directory '" + self.BOOK_PATH + "'"
-                                   " and restart the program.") %
+                                                                                                 " and restart the program.") %
                                   css_file)
                 self.display.css_ad_info.value = 1
 
@@ -872,7 +881,6 @@ class SafariBooks:
         self.css_done_queue.put(1)
         self.display.state(len(self.css), self.css_done_queue.qsize())
 
-
     def _thread_download_images(self, url):
         image_name = url.split("/")[-1]
         image_path = os.path.join(self.images_path, image_name)
@@ -881,7 +889,7 @@ class SafariBooks:
                 self.display.info(("File `%s` already exists.\n"
                                    "    If you want to download again all the images,\n"
                                    "    please delete the output directory '" + self.BOOK_PATH + "'"
-                                   " and restart the program.") %
+                                                                                                 " and restart the program.") %
                                   image_name)
                 self.display.images_ad_info.value = 1
 
@@ -965,7 +973,7 @@ class SafariBooks:
                              for sub in self.book_info.get("subjects", []))
 
         return self.CONTENT_OPF.format(
-            (self.book_info.get("isbn",  self.book_id)),
+            (self.book_info.get("isbn", self.book_id)),
             escape(self.book_title),
             authors,
             escape(self.book_info.get("description", "")),
@@ -990,9 +998,9 @@ class SafariBooks:
             r += "<navPoint id=\"{0}\" playOrder=\"{1}\">" \
                  "<navLabel><text>{2}</text></navLabel>" \
                  "<content src=\"{3}\"/>".format(
-                    cc["fragment"] if len(cc["fragment"]) else cc["id"], c,
-                    escape(cc["label"]), cc["href"].replace(".html", ".xhtml").split("/")[-1]
-                 )
+                cc["fragment"] if len(cc["fragment"]) else cc["id"], c,
+                escape(cc["label"]), cc["href"].replace(".html", ".xhtml").split("/")[-1]
+            )
 
             if cc["children"]:
                 sr, c, mx = SafariBooks.parse_toc(cc["children"], c, mx)
@@ -1051,7 +1059,10 @@ class SafariBooks:
             os.remove(zip_file + ".zip")
 
         shutil.make_archive(zip_file, 'zip', self.BOOK_PATH)
-        os.rename(zip_file + ".zip", os.path.join(self.BOOK_PATH, self.book_title) + ".epub")
+        os.rename(zip_file + ".zip", self.ABSOLUTE_FILE_PATH)
+
+    def move_file_to_downloaded_dir(self):
+        os.replace(self.ABSOLUTE_FILE_PATH, os.path.join(self.DOWNLOADED_PATH, self.FILE_NAME))
 
 
 # MAIN
